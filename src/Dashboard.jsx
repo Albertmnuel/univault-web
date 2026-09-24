@@ -6,7 +6,6 @@ import {
   ArrowUpRight, ShieldCheck, Users, Layers, Activity, Trash2
 } from 'lucide-react';
 
-// SET YOUR ADMIN EMAIL HERE
 const ADMIN_EMAIL = 'albertemmanuel981@gmail.com';
 
 export default function Dashboard({ session }) {
@@ -39,11 +38,10 @@ export default function Dashboard({ session }) {
   // Transaction Form States
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
-  const [category, setCategory] = useState('Food');
+  const [category, setCategory] = useState('General');
   const [selectedVault, setSelectedVault] = useState('');
   const [description, setDescription] = useState('');
 
-  // Fetch Admin Metrics
   const fetchAdminMetrics = async () => {
     setLoadingAdmin(true);
     try {
@@ -61,43 +59,18 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Fetch Transactions helper
-  const fetchTransactions = useCallback(async () => {
-    const userId = session?.user?.id;
-    if (!userId) return;
-
-    setRefreshing(true);
-    try {
-      const { data: txData, error: txErr } = await supabase
-        .from('transactions')
-        .select('*, vaults(name)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (txErr) throw txErr;
-      setTransactions(txData || []);
-    } catch (err) {
-      console.error('Error fetching transactions:', err.message);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [session?.user?.id]);
-
-  // Global Refresh Handler
   const handleRefreshAll = async () => {
     const userId = session?.user?.id;
     if (!userId) return;
 
     setRefreshing(true);
     try {
-      // 1. Refresh Vaults
       const { data: vaultData } = await supabase
         .from('vaults')
         .select('*')
         .eq('user_id', userId);
       if (vaultData) setVaults(vaultData);
 
-      // 2. Refresh Transactions
       const { data: txData } = await supabase
         .from('transactions')
         .select('*, vaults(name)')
@@ -105,7 +78,6 @@ export default function Dashboard({ session }) {
         .order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
 
-      // 3. Refresh Profile Info
       const { data: profData } = await supabase
         .from('profiles')
         .select('*')
@@ -120,12 +92,10 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Delete Individual Transaction
   const handleDeleteTransaction = async (txToDelete) => {
     if (!confirm('Are you sure you want to delete this transaction entry?')) return;
 
     try {
-      // 1. Delete from Supabase
       const { error } = await supabase
         .from('transactions')
         .delete()
@@ -133,17 +103,13 @@ export default function Dashboard({ session }) {
 
       if (error) throw error;
 
-      // 2. Revert vault amount if transaction was linked to a vault
+      // Revert vault accumulation on deletion
       if (txToDelete.vault_id) {
         const vaultToUpdate = vaults.find((v) => v.id === txToDelete.vault_id);
         if (vaultToUpdate) {
           const currentVal = Number(vaultToUpdate.current_amount) || 0;
           const txAmt = Number(txToDelete.amount) || 0;
-          
-          // Revert: If it was expense, add it back. If income, deduct it.
-          const newBalance = txToDelete.type === 'expense'
-            ? currentVal + txAmt
-            : Math.max(currentVal - txAmt, 0);
+          const newBalance = Math.max(currentVal - txAmt, 0);
 
           await supabase
             .from('vaults')
@@ -156,15 +122,12 @@ export default function Dashboard({ session }) {
         }
       }
 
-      // 3. Remove locally
       setTransactions((prev) => prev.filter((t) => t.id !== txToDelete.id));
-
     } catch (err) {
       alert(err.message);
     }
   };
 
-  // Clear All Transaction History
   const handleClearAllHistory = async () => {
     const userId = session?.user?.id;
     if (!userId) return;
@@ -181,7 +144,6 @@ export default function Dashboard({ session }) {
         .eq('user_id', userId);
 
       if (error) throw error;
-
       setTransactions([]);
     } catch (err) {
       alert(`Failed to clear history: ${err.message}`);
@@ -196,7 +158,6 @@ export default function Dashboard({ session }) {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch Profile Info
         const { data: profData, error: profErr } = await supabase
           .from('profiles')
           .select('*')
@@ -215,7 +176,6 @@ export default function Dashboard({ session }) {
           }
         }
 
-        // 2. Fetch Vaults
         const { data: vaultData, error: vaultErr } = await supabase
           .from('vaults')
           .select('*')
@@ -224,7 +184,6 @@ export default function Dashboard({ session }) {
         if (vaultErr) throw vaultErr;
         if (isMounted) setVaults(vaultData || []);
 
-        // 3. Fetch Transactions
         const { data: txData, error: txErr } = await supabase
           .from('transactions')
           .select('*, vaults(name)')
@@ -250,7 +209,6 @@ export default function Dashboard({ session }) {
     };
   }, [session?.user?.id]);
 
-  // Save Initial or Updated Base Income Schedule
   const handleSaveIncomeSetup = async (e) => {
     e.preventDefault();
     try {
@@ -292,7 +250,6 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Log Top-Up Money
   const handleAddTopUp = async (e) => {
     e.preventDefault();
     if (!topUpAmount) return;
@@ -327,7 +284,6 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Create Vault Target
   const handleCreateVault = async (e) => {
     e.preventDefault();
     if (!vaultName || !targetAmount) return;
@@ -351,7 +307,6 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Delete Vault
   const handleDeleteVault = async (vaultId) => {
     if (!confirm('Are you sure you want to delete this vault?')) return;
 
@@ -368,7 +323,6 @@ export default function Dashboard({ session }) {
     }
   };
 
-  // Log Expense or Income
   const handleAddTransaction = async (e) => {
     e.preventDefault();
     if (!amount) return;
@@ -376,7 +330,6 @@ export default function Dashboard({ session }) {
     const txAmount = parseFloat(amount);
 
     try {
-      // 1. Insert transaction
       const { data: newTx, error: txError } = await supabase
         .from('transactions')
         .insert([
@@ -393,15 +346,12 @@ export default function Dashboard({ session }) {
 
       if (txError) throw txError;
 
-      // 2. Update vault balance logic
+      // FIXED: Allocating to a Vault increases its current accumulated balance
       if (selectedVault) {
         const vaultToUpdate = vaults.find((v) => v.id === selectedVault);
         if (vaultToUpdate) {
           const currentVal = Number(vaultToUpdate.current_amount) || 0;
-          const newBalance =
-            type === 'income'
-              ? currentVal + txAmount
-              : Math.max(currentVal - txAmount, 0);
+          const newBalance = currentVal + txAmount;
 
           const { error: updateError } = await supabase
             .from('vaults')
@@ -416,24 +366,22 @@ export default function Dashboard({ session }) {
         }
       }
 
-      // 3. Update transaction state locally
       if (newTx && newTx.length > 0) {
         setTransactions((prev) => [newTx[0], ...prev]);
       }
 
-      // Reset form
       setAmount('');
       setDescription('');
       setSelectedVault('');
-      setCategory('Food');
+      setCategory('General');
       setType('expense');
     } catch (err) {
       alert(err.message);
     }
   };
 
-  // Dynamic Calculation Engine
-  const calculateDailySafeSpend = () => {
+  // FIXED: Calculations for Available Pool and Today's Safe-to-Spend
+  const calculateFinancialMetrics = () => {
     const cycle = profile?.income_cycle || 'weekly';
     const baseAllowance = Number(profile?.allowance_amount) || 0;
 
@@ -445,17 +393,25 @@ export default function Dashboard({ session }) {
       .filter((t) => t.type === 'expense')
       .reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
-    const remainingBalance = (baseAllowance + extraIncome) - totalExpenses;
+    const availablePool = Math.max((baseAllowance + extraIncome) - totalExpenses, 0);
 
     let divisor = 7;
     if (cycle === 'monthly') divisor = 30;
     if (cycle === 'lump_sum') divisor = 112; 
     if (cycle === 'irregular') divisor = 7;
 
-    const dailyLimit = Math.max(remainingBalance / divisor, 0).toFixed(2);
+    const dailyBaseline = baseAllowance / divisor;
+
+    // Sum expenses logged today specifically
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayExpenses = transactions
+      .filter((t) => t.type === 'expense' && t.created_at && t.created_at.startsWith(todayStr))
+      .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+    const dailyLimit = Math.max(dailyBaseline - todayExpenses, 0).toFixed(2);
 
     return {
-      remainingBalance: Math.max(remainingBalance, 0),
+      availablePool,
       dailyLimit,
     };
   };
@@ -468,11 +424,11 @@ export default function Dashboard({ session }) {
     );
   }
 
-  const { remainingBalance, dailyLimit } = calculateDailySafeSpend();
+  const { availablePool, dailyLimit } = calculateFinancialMetrics();
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-4 shadow-2xs">
@@ -503,7 +459,7 @@ export default function Dashboard({ session }) {
             <button 
               type="button"
               onClick={() => setShowTopUpModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-all shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-all cursor-pointer"
             >
               <PlusCircle size={16} />
               Top-Up Money
@@ -524,14 +480,13 @@ export default function Dashboard({ session }) {
         </div>
       </header>
 
-      {/* Main Dashboard Container */}
+      {/* Main Container */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
-        {/* 1. Stat Summary Cards (DARK THEME) */}
+        {/* Stat Summary Cards */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Daily Safe-to-Spend */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md hover:border-slate-700 transition-all space-y-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-3">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
                 Daily Safe-to-Spend
@@ -542,16 +497,15 @@ export default function Dashboard({ session }) {
             </div>
             <div>
               <div className="text-3xl font-extrabold text-blue-400">
-                ₦{dailyLimit} <span className="text-xs font-normal text-slate-400">/ day</span>
+                ₦{dailyLimit} <span className="text-xs font-normal text-slate-400">/ today</span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Calculated dynamically based on your {profile?.income_cycle || 'weekly'} allowance.
+                Daily limit (₦{(profile?.allowance_amount / 7 || 0).toFixed(2)}) minus expenses logged today.
               </p>
             </div>
           </div>
 
-          {/* Available Pool */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md hover:border-slate-700 transition-all space-y-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-3">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                 Available Pool
@@ -562,7 +516,7 @@ export default function Dashboard({ session }) {
             </div>
             <div>
               <div className="text-3xl font-extrabold text-white">
-                ₦{remainingBalance.toFixed(2)}
+                ₦{availablePool.toFixed(2)}
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Total allowance minus logged expenses.
@@ -570,8 +524,7 @@ export default function Dashboard({ session }) {
             </div>
           </div>
 
-          {/* Income Profile */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md hover:border-slate-700 transition-all space-y-3">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-3">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
                 Allowance Profile
@@ -587,7 +540,7 @@ export default function Dashboard({ session }) {
               <button 
                 type="button" 
                 onClick={() => setShowIncomeModal(true)}
-                className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-1 transition-colors cursor-pointer"
+                className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-1 cursor-pointer"
               >
                 Change Schedule <ArrowUpRight size={13} />
               </button>
@@ -596,10 +549,9 @@ export default function Dashboard({ session }) {
 
         </section>
 
-        {/* 2. Action Grid (Create Vault & Log Entry) */}
+        {/* Action Grid */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Create Vault Form */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
             <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
               <PlusCircle className="text-blue-600" size={20} />
@@ -608,44 +560,39 @@ export default function Dashboard({ session }) {
 
             <form onSubmit={handleCreateVault} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Vault Name
-                </label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Vault Name</label>
                 <input 
                   type="text" 
-                  placeholder="e.g. Textbooks, Handouts, Groceries"
+                  placeholder="e.g. iphone, Textbooks, Groceries"
                   value={vaultName}
                   onChange={(e) => setVaultName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Target Budget Amount (₦)
-                </label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Target Budget Amount (₦)</label>
                 <input 
                   type="number" 
                   step="0.01"
                   placeholder="0.00"
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   required
                 />
               </div>
 
               <button 
                 type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl cursor-pointer"
               >
                 Add Vault
               </button>
             </form>
           </div>
 
-          {/* Log Expense / Income Form */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
             <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
               <ArrowDownCircle className="text-emerald-600" size={20} />
@@ -654,13 +601,11 @@ export default function Dashboard({ session }) {
 
             <form onSubmit={handleAddTransaction} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Select Vault
-                </label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Select Vault</label>
                 <select 
                   value={selectedVault}
                   onChange={(e) => setSelectedVault(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all cursor-pointer"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm cursor-pointer"
                 >
                   <option value="">No Vault (General Campus Expense)</option>
                   {vaults.map((v) => (
@@ -671,28 +616,24 @@ export default function Dashboard({ session }) {
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Amount (₦)
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Amount (₦)</label>
                   <input 
                     type="number" 
                     step="0.01"
                     placeholder="0.00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all placeholder:text-slate-400"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Type
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Type</label>
                   <select 
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all cursor-pointer"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm cursor-pointer"
                   >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
@@ -702,40 +643,36 @@ export default function Dashboard({ session }) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Category
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Category</label>
                   <select 
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all cursor-pointer"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm cursor-pointer"
                   >
+                    <option value="General">General</option>
                     <option value="Food">Food / Cafeteria</option>
                     <option value="Handouts">Handouts / Books</option>
                     <option value="Hostel">Hostel / Dues</option>
                     <option value="Data">Data & Airtime</option>
                     <option value="Transport">Transportation</option>
-                    <option value="General">General</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Description (Optional)
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Description (Optional)</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. Lunch at Cafeteria"
+                    placeholder="e.g. iPhone Savings"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all placeholder:text-slate-400"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                   />
                 </div>
               </div>
 
               <button 
                 type="submit"
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl cursor-pointer"
               >
                 Record Entry
               </button>
@@ -744,7 +681,7 @@ export default function Dashboard({ session }) {
 
         </section>
 
-        {/* 3. Active Vaults Section (DARK THEME) */}
+        {/* Active Vaults */}
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 text-white font-bold text-base">
             <PieChart className="text-purple-400" size={20} />
@@ -753,7 +690,7 @@ export default function Dashboard({ session }) {
 
           {vaults.length === 0 ? (
             <div className="p-8 text-center text-slate-400 border border-dashed border-slate-800 rounded-xl bg-slate-950/50">
-              <p className="text-sm">No vaults created yet. Add one above to get started!</p>
+              <p className="text-sm">No vaults created yet.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -763,10 +700,10 @@ export default function Dashboard({ session }) {
                 const percentage = Math.min(Math.max((current / target) * 100, 0), 100);
 
                 return (
-                  <div key={vault.id} className="bg-slate-950 p-5 rounded-xl border border-slate-800 hover:border-slate-700 transition-all relative space-y-3">
+                  <div key={vault.id} className="bg-slate-950 p-5 rounded-xl border border-slate-800 relative space-y-3">
                     <button 
                       onClick={() => handleDeleteVault(vault.id)}
-                      className="absolute top-4 right-4 text-slate-500 hover:text-rose-400 transition-colors p-1"
+                      className="absolute top-4 right-4 text-slate-500 hover:text-rose-400 p-1"
                       title="Delete Vault"
                     >
                       <X size={16} />
@@ -790,7 +727,7 @@ export default function Dashboard({ session }) {
           )}
         </section>
 
-        {/* 4. Recent Transactions List (DARK THEME) */}
+        {/* Recent Transactions */}
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-4">
           <div className="flex justify-between items-center flex-wrap gap-3">
             <div className="flex items-center gap-2 text-white font-bold text-base">
@@ -802,7 +739,7 @@ export default function Dashboard({ session }) {
               <button
                 onClick={handleRefreshAll}
                 disabled={refreshing}
-                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-lg cursor-pointer text-xs transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-lg text-xs"
               >
                 <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -812,8 +749,7 @@ export default function Dashboard({ session }) {
                 <button
                   onClick={handleClearAllHistory}
                   disabled={clearing}
-                  className="flex items-center gap-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 font-semibold px-3 py-1.5 rounded-lg cursor-pointer text-xs transition-colors disabled:opacity-50"
-                  title="Wipe out all transaction records"
+                  className="flex items-center gap-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 font-semibold px-3 py-1.5 rounded-lg text-xs"
                 >
                   <Trash2 size={13} />
                   {clearing ? 'Clearing...' : 'Clear All History'}
@@ -829,7 +765,7 @@ export default function Dashboard({ session }) {
           ) : (
             <div className="border border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-800/80 bg-slate-950">
               {transactions.map((tx) => (
-                <div key={tx.id} className="flex justify-between items-center p-3.5 px-4 hover:bg-slate-900/60 transition-colors">
+                <div key={tx.id} className="flex justify-between items-center p-3.5 px-4 hover:bg-slate-900/60">
                   <div>
                     <div className="font-semibold text-sm text-slate-100">{tx.description || tx.category || tx.vaults?.name || 'Transaction'}</div>
                     <div className="text-xs text-slate-400 mt-0.5">
@@ -844,8 +780,7 @@ export default function Dashboard({ session }) {
 
                     <button
                       onClick={() => handleDeleteTransaction(tx)}
-                      className="text-slate-500 hover:text-rose-400 transition-colors p-1"
-                      title="Delete Entry"
+                      className="text-slate-500 hover:text-rose-400 p-1"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -858,13 +793,13 @@ export default function Dashboard({ session }) {
 
       </main>
 
-      {/* Admin Panel Modal (DARK THEME) */}
+      {/* Admin Panel Modal */}
       {showAdminModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex justify-center items-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-2xl w-full shadow-2xl relative space-y-6 text-white">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-2xl w-full relative space-y-6 text-white">
             <button 
               onClick={() => setShowAdminModal(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white cursor-pointer p-1"
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1"
             >
               <X size={18} />
             </button>
@@ -890,7 +825,6 @@ export default function Dashboard({ session }) {
                     <Users size={14} className="text-blue-400" /> Total Registered
                   </div>
                   <div className="text-2xl font-extrabold text-white">{adminMetrics.total_users || 0}</div>
-                  <p className="text-[10px] text-slate-500">Users created via Auth</p>
                 </div>
 
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -898,7 +832,6 @@ export default function Dashboard({ session }) {
                     <Activity size={14} className="text-emerald-400" /> Active Profiles
                   </div>
                   <div className="text-2xl font-extrabold text-white">{adminMetrics.configured_profiles || 0}</div>
-                  <p className="text-[10px] text-slate-500">Configured allowances</p>
                 </div>
 
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -906,7 +839,6 @@ export default function Dashboard({ session }) {
                     <Layers size={14} className="text-purple-400" /> Total Vaults
                   </div>
                   <div className="text-2xl font-extrabold text-white">{adminMetrics.total_vaults || 0}</div>
-                  <p className="text-[10px] text-slate-500">Created across all users</p>
                 </div>
 
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -914,7 +846,6 @@ export default function Dashboard({ session }) {
                     <History size={14} className="text-amber-400" /> Total Transactions
                   </div>
                   <div className="text-2xl font-extrabold text-white">{adminMetrics.total_transactions || 0}</div>
-                  <p className="text-[10px] text-slate-500">Logged app-wide</p>
                 </div>
 
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -922,7 +853,6 @@ export default function Dashboard({ session }) {
                     <span className="text-rose-400 font-bold text-xs">₦</span> Volume Expenses
                   </div>
                   <div className="text-xl font-bold text-rose-400">₦{Number(adminMetrics.total_expenses_logged || 0).toFixed(2)}</div>
-                  <p className="text-[10px] text-slate-500">Sum of expenses</p>
                 </div>
 
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -930,7 +860,6 @@ export default function Dashboard({ session }) {
                     <span className="text-emerald-400 font-bold text-xs">₦</span> Volume Income
                   </div>
                   <div className="text-xl font-bold text-emerald-400">₦{Number(adminMetrics.total_income_logged || 0).toFixed(2)}</div>
-                  <p className="text-[10px] text-slate-500">Sum of deposits</p>
                 </div>
               </div>
             ) : (
@@ -940,10 +869,10 @@ export default function Dashboard({ session }) {
         </div>
       )}
 
-      {/* Income Setup / Schedule Modal */}
+      {/* Income Setup Modal */}
       {showIncomeModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex justify-center items-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-5 text-slate-900">
+          <div className="bg-white p-6 rounded-2xl max-w-md w-full space-y-5 text-slate-900">
             <h3 className="text-xl font-bold">Configure Allowance Schedule</h3>
             <p className="text-sm text-slate-500">Set your stipend structure to calculate your daily safe-to-spend limit.</p>
             
@@ -967,7 +896,7 @@ export default function Dashboard({ session }) {
                 <input 
                   type="number" 
                   step="0.01" 
-                  placeholder="e.g. 10000" 
+                  placeholder="e.g. 35000" 
                   value={allowanceAmount}
                   onChange={(e) => setAllowanceAmount(e.target.value)}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
@@ -975,7 +904,7 @@ export default function Dashboard({ session }) {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-all">
+              <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl">
                 Save Profile
               </button>
             </form>
@@ -986,7 +915,7 @@ export default function Dashboard({ session }) {
       {/* Quick Top-Up Modal */}
       {showTopUpModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex justify-center items-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl relative space-y-5 text-slate-900">
+          <div className="bg-white p-6 rounded-2xl max-w-md w-full relative space-y-5 text-slate-900">
             <button 
               onClick={() => setShowTopUpModal(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
@@ -1021,7 +950,7 @@ export default function Dashboard({ session }) {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition-all">
+              <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl">
                 Add to Available Pool
               </button>
             </form>
